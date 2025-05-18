@@ -1,0 +1,339 @@
+print("═══════════════════════════════════════════════════════════════")
+print("███████╗██╗   ██╗██████╗ ██╗       ██████╗    ██╗ ████████╗ ███████")
+print("██╔════╝╚██╗██╔╝██╔══██╗██║      ██╔═══██╗  ██║ ╚══██╔══╝ ██╔════")
+print("█████╗    ╚███╔╝ ██████╔╝██║      ██║    ██║  ██║    ██║      ███████")
+
+local player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- Kiểm tra script đã chạy chưa
+if _G.CombatSystemRunning then
+    warn("Hệ thống đã được kích hoạt trước đó")
+print("██╔══╝    ██╔██╗ ██╔═══╝ ██║      ██║    ██║  ██║    ██║      ╚════██")
+print("███████╗██╔╝ ██╗██║      ███████╗╚██████╔╝ ██║    ██║      ███████")
+print("╚══════╝╚═╝  ╚═╝╚═╝      ╚══════╝ ╚═════╝   ╚═╝    ╚═╝      ╚══════")
+print("═══════════════════════════════════════════════════════════════")
+print("Advanced Combat System with Anti-Cheat Protection")
+print("Developing by Zac")
+print("═══════════════════════════════════════════════════════════════")
+    return
+end
+_G.CombatSystemRunning = true
+
+-- Cấu hình hệ thống
+local ATTACK_COOLDOWN = 1
+local lastAttackTime = 0
+local currentMode = 2 -- 1: Dừng, 2: Bình thường, 3: Clear Zombie
+local highlightEnabled = true -- Luôn bật highlight
+
+-- Cache các hàm thường dùng
+local GetDescendants = workspace.GetDescendants
+local osClock = os.clock
+local mathRandom = math.random
+local Vector3New = Vector3.new
+local ipairs = ipairs
+local unpack = unpack
+
+-- Danh sách các loại zombie
+local ZOMBIE_TYPES = {"Agent", "Slim"}
+
+-- Tạo UI đơn giản với nút chuyển chế độ
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombatSystemUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
+
+local mainFrame1 = Instance.new("Frame")
+mainFrame1.Size = UDim2.new(0, 250, 0, 80)
+mainFrame1.Position = UDim2.new(0.5, -125, 0, 10)
+mainFrame1.BackgroundTransparency = 0.8
+mainFrame1.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame1.Parent = screenGui
+
+local autoAttackLabel = Instance.new("TextLabel")
+autoAttackLabel.Size = UDim2.new(1, 0, 0.5, 0)
+autoAttackLabel.Position = UDim2.new(0, 0, 0, 0)
+autoAttackLabel.Text = "⚔️ TỰ ĐỘNG TẤN CÔNG: ĐANG BẬT"
+autoAttackLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+autoAttackLabel.BackgroundTransparency = 1
+autoAttackLabel.Font = Enum.Font.SourceSansBold
+autoAttackLabel.TextSize = 14
+autoAttackLabel.Parent = mainFrame1
+
+local highlightLabel = Instance.new("TextLabel")
+highlightLabel.Size = UDim2.new(1, 0, 0.5, 0)
+highlightLabel.Position = UDim2.new(0, 0, 0.5, 0)
+highlightLabel.Text = "🔍 HIGHLIGHT ZOMBIE: ĐANG BẬT"
+highlightLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+highlightLabel.BackgroundTransparency = 1
+highlightLabel.Font = Enum.Font.SourceSansBold
+highlightLabel.TextSize = 14
+highlightLabel.Parent = mainFrame1
+
+local mainFrame2 = Instance.new("Frame")
+mainFrame2.Size = UDim2.new(0, 250, 0, 60)
+mainFrame2.Position = UDim2.new(0.5, -125, 0, 100)  -- 30 cuối
+mainFrame2.BackgroundTransparency = 0.8
+mainFrame2.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame2.Parent = screenGui
+
+local modeButton = Instance.new("TextButton")
+modeButton.Size = UDim2.new(0.9, 0, 0.8, 0)
+modeButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+modeButton.Text = "Chế độ: Bình thường"
+modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+modeButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+modeButton.Parent = mainFrame2
+
+-- Hàm cập nhật giao diện
+local function updateModeDisplay()
+    if currentMode == 1 then
+        modeButton.Text = "Chế độ: Dừng"
+        modeButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    elseif currentMode == 2 then
+        modeButton.Text = "Chế độ: Bình thường"
+        modeButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    elseif currentMode == 3 then
+        modeButton.Text = "Chế độ: Clear Zombie"
+        modeButton.BackgroundColor3 = Color3.fromRGB(170, 170, 0)
+    end
+end
+
+-- Nút chuyển chế độ
+modeButton.MouseButton1Click:Connect(function()
+    currentMode = currentMode + 1
+    if currentMode > 3 then
+        currentMode = 1
+    end
+    updateModeDisplay()
+    
+    -- Thông báo khi đổi chế độ
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "ĐÃ ĐỔI CHẾ ĐỘ",
+        Text = modeButton.Text,
+        Duration = 3
+    })
+end)
+
+wait(0.1)
+game.StarterGui:SetCore("SendNotification", {
+    Title = "HỆ THỐNG KHỞI ĐỘNG",
+    Text = "⚔️ ═════════════🔍",
+    Duration = 5
+})
+
+wait(0.1)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🔄️ĐANG XỬ LÝ AUTOKILL....",
+    Text = "⚔️ Tự động tấn công Zombies !",
+    Duration = 5
+})
+
+-- Hệ thống tấn công
+local function executeAttack()
+    if currentMode == 1 then return end -- Chế độ dừng
+    
+    local currentTime = osClock()
+    if currentTime - lastAttackTime < ATTACK_COOLDOWN then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local weapon = character:FindFirstChildWhichIsA("Tool")
+    if not weapon then return end
+    
+    local remoteEvent = weapon:FindFirstChildWhichIsA("RemoteEvent") or
+                       weapon:FindFirstChild("MeleeBase") and weapon.MeleeBase:FindFirstChildWhichIsA("RemoteEvent")
+    if not remoteEvent then return end
+
+    -- Tìm zombie trong workspace
+    local zombiesInRange = {}
+    local rootPos = humanoidRootPart.Position
+    
+    for _, agent in ipairs(workspace:GetDescendants()) do
+        for _, zombieType in ipairs(ZOMBIE_TYPES) do
+            if agent.Name == zombieType then
+                local head = agent:FindFirstChild("Head")
+                if head then
+                    local humanoid = agent:FindFirstChildOfClass("Humanoid")
+                    if humanoid and humanoid.Health > 0 then
+                        local dist = (head.Position - rootPos).Magnitude
+                        if dist <= 19 then
+                            table.insert(zombiesInRange, {
+                                model = agent,
+                                head = head
+                            })
+                            break
+                        end
+                    end
+                end
+                break
+            end
+        end
+    end
+
+    if #zombiesInRange > 0 then
+        for _, zombie in ipairs(zombiesInRange) do
+            local hitPos = zombie.head.Position
+            local dir = (hitPos - rootPos).Unit
+            local knockback = dir * 15
+            
+            -- Gửi sự kiện Swing + Hit (1 lần)
+            remoteEvent:FireServer("Swing", "Thrust")
+            remoteEvent:FireServer(
+                "HitZombie",
+                zombie.model,
+                hitPos,
+                true,
+                knockback,
+                "Head",
+                Vector3New(mathRandom(), mathRandom(), mathRandom()).Unit
+            )
+            
+            -- Chế độ Clear Zombie: gửi thêm 2 lần Swing + Hit (tổng 3 lần)
+            if currentMode == 3 then
+                for i = 1, 4 do
+                    task.wait(0.05)
+                    remoteEvent:FireServer("Swing", "Thrust")
+                    remoteEvent:FireServer(
+                        "HitZombie",
+                        zombie.model,
+                        hitPos + Vector3New(0, 0.2 * i, 0),
+                        true,
+                        knockback * (1 + i * 0.1),
+                        "Head",
+                        Vector3New(mathRandom(), mathRandom(), mathRandom()).Unit * (1 + i * 0.2)
+                    )
+                end
+            end
+        end
+        
+        lastAttackTime = currentTime
+    end
+end
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "✅ XỬ LÝ AUTOKILL SUCCESSFULL",
+    Text = "⚔️ Tự động tấn công Zombies !",
+    Duration = 5
+})
+
+wait(0.1)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🔄️ĐANG XỬ LÝ HIGHLIGHT....",
+    Text = "🔍 Tự động highlight zombie",
+    Duration = 5
+})
+
+
+local highlightConfig = {
+    Torch = {Color = Color3.fromRGB(100, 255, 100), Transparency = 0.2},
+    Axe = {Color = Color3.fromRGB(255, 100, 100), Transparency = 0.2},
+    Default = {Color = Color3.fromRGB(240, 240, 240), Transparency = 0.2}
+}
+
+local player = game.Players.LocalPlayer
+local zombieModelName = "m_Zombie"
+local cameraFolder = workspace:WaitForChild("Camera")
+
+local function applyGuaranteedHighlight(model)
+    -- Fix 1: Đảm bảo PrimaryPart tồn tại
+    if not model.PrimaryPart then
+        model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart") or model:WaitForChild("HumanoidRootPart", 2)
+        if not model.PrimaryPart then return end
+    end
+
+    -- Fix 5: Chỉ highlight khi trong tầm nhìn
+    local camera = workspace.CurrentCamera
+    local screenPoint = camera:WorldToViewportPoint(model.PrimaryPart.Position)
+    if screenPoint.Z <= 0 then return end
+
+    -- Xóa highlight cũ
+    for _,v in ipairs(model:GetDescendants()) do
+        if v.Name:sub(1,4) == "ZHL_" then
+            v:Destroy()
+        end
+    end
+
+    -- Tạo highlight mới
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ZHL_"..math.random(1,9999) -- Fix 4
+    highlight.Adornee = model
+    highlight.FillTransparency = highlightConfig.Default.Transparency
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+    -- Chọn màu
+    if model:FindFirstChild("Torch", true) then
+        highlight.FillColor = highlightConfig.Torch.Color
+    elseif model:FindFirstChild("Axe", true) then
+        highlight.FillColor = highlightConfig.Axe.Color
+    else
+        highlight.FillColor = highlightConfig.Default.Color
+    end
+
+    highlight.Parent = model
+end
+
+-- Fix 3: Giới hạn khoảng cách
+local function updateHighlights()
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    for _, model in ipairs(cameraFolder:GetDescendants()) do
+        if model:IsA("Model") and model.Name == zombieModelName and model.PrimaryPart then
+            local distance = (char.HumanoidRootPart.Position - model.PrimaryPart.Position).Magnitude
+            if distance < 80 then -- 100 studs
+                applyGuaranteedHighlight(model)
+            end
+        end
+    end
+end
+
+wait(2)
+game.StarterGui:SetCore("SendNotification", {
+    Title = "✅ XỬ LÝ HIGHLIGHT SUCCESSFUL",
+    Text = "🔍 Tự động highlight zombie",
+    Duration = 5
+})
+wait(0.1)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🎨 Hệ thống highlight",
+    Text = "🔧 Quy tắc màu mới:",
+    Duration = 5
+})
+wait(0.1)
+game.StarterGui:SetCore("SendNotification", {
+    Title = "----------------------",
+    Text = "🟢 Chỉ Torch ➡️ Xanh lá;🔴Chỉ Axe    ➡️ Đỏ",  
+   Duration = 5
+})
+
+-- Kết nối với Heartbeat
+RunService.Heartbeat:Connect(function()
+    pcall(executeAttack)
+    pcall(updateHighlights)
+end)
+
+-- Khởi tạo hiển thị
+updateModeDisplay()
+
+-- Thông báo khởi động
+game.StarterGui:SetCore("SendNotification", {
+    Title = "HỆ THỐNG ĐÃ SẴN SÀNG",
+    Text = "⚔️ ═════════════🔍 ",
+    Duration = 5
+})
+
+print("██╔══╝    ██╔██╗ ██╔═══╝ ██║      ██║    ██║  ██║    ██║      ╚════██")
+print("███████╗██╔╝ ██╗██║      ███████╗╚██████╔╝ ██║    ██║      ███████")
+print("╚══════╝╚═╝  ╚═╝╚═╝      ╚══════╝ ╚═════╝   ╚═╝    ╚═╝      ╚══════")
+print("═══════════════════════════════════════════════════════════════")
+print("Advanced Combat System without Anti-Cheat Protection")
+print("Developing by Zac")
+print("═══════════════════════════════════════════════════════════════")
