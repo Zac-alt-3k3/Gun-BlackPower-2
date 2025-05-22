@@ -23,7 +23,158 @@ end
 _G.CombatSystemRunning = true
 
 -- Cấu hình hệ thống
-17 then
+local ATTACK_COOLDOWN = 1
+local lastAttackTime = 0
+local currentMode = 2 -- 1: Dừng, 2: Bình thường, 3: Clear Zombie
+local highlightEnabled = true -- Luôn bật highlight
+local WaitTime = 0
+ 
+-- Cache các hàm thường dùng
+local GetDescendants = workspace.GetDescendants
+local osClock = os.clock
+local mathRandom = math.random
+local Vector3New = Vector3.new
+local ipairs = ipairs
+local unpack = unpack
+
+-- Danh sách các loại zombie
+local ZOMBIE_TYPES = {"Agent", "Slim"}
+
+-- Tạo UI đơn giản với nút chuyển chế độ
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombatSystemUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
+
+local mainFrame1 = Instance.new("Frame")
+mainFrame1.Size = UDim2.new(0, 250, 0, 80)
+mainFrame1.Position = UDim2.new(0.5, -125, 0, 10)
+mainFrame1.BackgroundTransparency = 0.8
+mainFrame1.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame1.Parent = screenGui
+
+local autoAttackLabel = Instance.new("TextLabel")
+autoAttackLabel.Size = UDim2.new(1, 0, 0.5, 0)
+autoAttackLabel.Position = UDim2.new(0, 0, 0, 0)
+autoAttackLabel.Text = "⚔️ TỰ ĐỘNG TẤN CÔNG: ĐANG BẬT"
+autoAttackLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+autoAttackLabel.BackgroundTransparency = 1
+autoAttackLabel.Font = Enum.Font.SourceSansBold
+autoAttackLabel.TextSize = 14
+autoAttackLabel.Parent = mainFrame1
+
+local highlightLabel = Instance.new("TextLabel")
+highlightLabel.Size = UDim2.new(1, 0, 0.5, 0)
+highlightLabel.Position = UDim2.new(0, 0, 0.5, 0)
+highlightLabel.Text = "🔍 HIGHLIGHT ZOMBIE: ĐANG BẬT"
+highlightLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+highlightLabel.BackgroundTransparency = 1
+highlightLabel.Font = Enum.Font.SourceSansBold
+highlightLabel.TextSize = 14
+highlightLabel.Parent = mainFrame1
+
+local mainFrame2 = Instance.new("Frame")
+mainFrame2.Size = UDim2.new(0, 250, 0, 60)
+mainFrame2.Position = UDim2.new(0.5, -125, 0, 100)  -- 30 cuối
+mainFrame2.BackgroundTransparency = 0.8
+mainFrame2.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame2.Parent = screenGui
+
+local modeButton = Instance.new("TextButton")
+modeButton.Size = UDim2.new(0.9, 0, 0.8, 0)
+modeButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+modeButton.Text = "Chế độ: Bình thường"
+modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+modeButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+modeButton.Parent = mainFrame2
+
+--Fix lag cho chay chậm hơn
+WaitTime = SetLag*0.4
+if SetLag > 10 then 
+WaitTime = 1.5
+elseif SetLag <= 1 then 
+WaitTime = 0
+end
+
+
+-- Hàm cập nhật giao diện
+local function updateModeDisplay()
+    if currentMode == 1 then
+        modeButton.Text = "Chế độ: Dừng"
+        modeButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    elseif currentMode == 2 then
+        modeButton.Text = "Chế độ: Bình thường"
+        modeButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    elseif currentMode == 3 then
+        modeButton.Text = "Chế độ: Clear Zombie"
+        modeButton.BackgroundColor3 = Color3.fromRGB(170, 170, 0)
+    end
+end
+
+-- Nút chuyển chế độ
+modeButton.MouseButton1Click:Connect(function()
+    currentMode = currentMode + 1
+    if currentMode > 3 then
+        currentMode = 1
+    end
+    updateModeDisplay()
+    
+    -- Thông báo khi đổi chế độ
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "ĐÃ ĐỔI CHẾ ĐỘ",
+        Text = modeButton.Text,
+        Duration = 3
+    })
+end)
+
+wait(0.1)
+game.StarterGui:SetCore("SendNotification", {
+    Title = "HỆ THỐNG KHỞI ĐỘNG",
+    Text = "⚔️ ═════════════🔍",
+    Duration = 5
+})
+
+wait(0.1)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🔄️ĐANG XỬ LÝ AUTOKILL....",
+    Text = "⚔️ Tự động tấn công Zombies !",
+    Duration = 5
+})
+
+-- Hệ thống tấn công
+local function executeAttack()
+    if currentMode == 1 then return end -- Chế độ dừng
+    
+    local currentTime = osClock()
+    if currentTime - lastAttackTime < ATTACK_COOLDOWN then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local weapon = character:FindFirstChildWhichIsA("Tool")
+    if not weapon then return end
+    
+    local remoteEvent = weapon:FindFirstChildWhichIsA("RemoteEvent") or
+                       weapon:FindFirstChild("MeleeBase") and weapon.MeleeBase:FindFirstChildWhichIsA("RemoteEvent")
+    if not remoteEvent then return end
+
+    -- Tìm zombie trong workspace
+    local zombiesInRange = {}
+    local rootPos = humanoidRootPart.Position
+    
+    for _, agent in ipairs(workspace:GetDescendants()) do
+        for _, zombieType in ipairs(ZOMBIE_TYPES) do
+            if agent.Name == zombieType then
+                local head = agent:FindFirstChild("Head")
+                if head then
+                    local humanoid = agent:FindFirstChildOfClass("Humanoid")
+                    if humanoid and humanoid.Health > 0 then
+                        local dist = (head.Position - rootPos).Magnitude
+                        if dist <= 19 then
                             table.insert(zombiesInRange, {
                                 model = agent,
                                 head = head
