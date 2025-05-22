@@ -1,5 +1,5 @@
 
-local SetLag = 3 -- You can set this number to reduce lag minimum = 0 & maximumu = 10 
+local SetLag = 9.5 -- You can set this number to reduce lag minimum = 0 & maximumu = 10 
 
 print("═══════════════════════════════════════════════════════════════")
 print("███████╗██╗   ██╗██████╗ ██╗       ██████╗    ██╗ ████████╗ ███████")
