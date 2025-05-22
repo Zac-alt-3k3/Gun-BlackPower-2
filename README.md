@@ -9,6 +9,5 @@ Fast & usefully.  Copy and paste this below to use.
 ## Script
 
 ```lua
-local SetLag = 3 -- You can set this number to reduce lag minimum = 0 & maximumu = 10 
 loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Zac-alt-3k3/Gun-BlackPower-2/refs/heads/main/main"))()
 ```
